@@ -1,36 +1,47 @@
 const express = require('express');
-const axios = require('axios');
+const FreeFireAPI = require('@pure0cd/freefire-api');
 const cors = require('cors');
 
 const app = express();
+const api = new FreeFireAPI();
+
 app.use(cors());
 app.use(express.json());
 
-// This uses a direct URL to check IDs so you don't need extra files
+// Main API Route
 app.get('/api/check-ff/:uid', async (req, res) => {
     const { uid } = req.params;
-    try {
-        // Checking Singapore/Cambodia region database
-        const url = `https://free-ff-api-src-5plp.onrender.com/api/v1/account?region=IND&uid=${uid}`;
-        const response = await axios.get(url);
 
-        if (response.data && response.data.basicInfo) {
-            const player = response.data.basicInfo;
+    try {
+        // Fetches data directly from Garena servers
+        const profile = await api.getPlayerProfile(uid);
+
+        if (profile && profile.basicinfo) {
+            const data = profile.basicinfo;
+            
+            // Logic to show KH for Cambodian players (usually in SG region)
+            const regionDisplay = data.region === 'SG' ? 'Cambodia (SG)' : data.region;
+
             res.json({
                 success: true,
-                nickname: player.nickname,
-                level: player.level,
-                region: "KH/SG"
+                nickname: data.nickname,
+                level: data.level,
+                region: regionDisplay,
+                account_id: data.accountid
             });
         } else {
-            res.status(404).json({ success: false, message: "Player not found" });
+            res.status(404).json({ success: false, message: "ID not found" });
         }
     } catch (error) {
-        res.status(500).json({ success: false, message: "Server busy, try again" });
+        console.error("FF API Error:", error);
+        res.status(500).json({ success: false, message: "API is currently busy" });
     }
 });
 
-app.get('/', (req, res) => res.send("API is running smooth!"));
+// Health check for Render.com
+app.get('/', (req, res) => res.send("Free Fire API is Online"));
 
-const PORT = process.env.PORT || 10000; // Render prefers 10000 or dynamic
-app.listen(PORT, '0.0.0.0', () => console.log(`Server live on ${PORT}`));
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server is running on port ${PORT}`);
+});
